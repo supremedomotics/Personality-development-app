@@ -4,7 +4,8 @@ Nothing is listed as working unless the verification is stated. "Tests" = automa
 
 ## Build and test
 - Flutter 3.47.7 / Dart 3.13.5. `dart analyze` clean. **128 tests passing locally**.
-- GitHub Actions (`android-build`) runs analyze + tests and builds two APKs on every push. Run 1 (commit 64450e7) built both APKs successfully; run 2 failed in `sdkmanager` during SDK setup (environment, not code; not root-caused); run 3 succeeded; later runs are in progress. See `docs/ANDROID_BUILD.md`.
+- GitHub Actions (`android-build`) runs analyze + tests and builds two APKs on every push. History: runs 1, 3, 4 succeeded; run 2 failed in `sdkmanager` (environment, not root-caused); **runs 5-9 failed** because the main app's minSdk (24) was below the llama plugin's 26 (my mistake, found in the log); **run 10 (commit 01fb7f2) succeeded: analysis, tests and both APK builds**, and its merged-manifest check passed (only the app's internal permission; allowBackup false). See `docs/ANDROID_BUILD.md`.
+- minSdk is now 26 (Android 8.0+).
 - No build has been installed or run on any phone. **Nothing has been seen running on the S23 Ultra.**
 
 ## IMPLEMENTED (verified by tests unless noted)
