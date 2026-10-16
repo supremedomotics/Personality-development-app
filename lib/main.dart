@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import 'ai/ai_state.dart';
+import 'ai/llama_android_runtime.dart';
 import 'app_state.dart';
 import 'data/database.dart';
 import 'ui/shell.dart';
@@ -16,7 +18,10 @@ Future<void> main() async {
   final dir = await getApplicationDocumentsDirectory();
   final db = AppDatabase(NativeDatabase(File(p.join(dir.path, 'ceo_forge.sqlite'))));
   runApp(ProviderScope(
-    overrides: [repositoryProvider.overrideWithValue(DriftProgressRepository(db))],
+    overrides: [
+      repositoryProvider.overrideWithValue(DriftProgressRepository(db)),
+      if (Platform.isAndroid) modelRuntimeProvider.overrideWithValue(LlamaAndroidRuntime()),
+    ],
     child: const CeoForgeApp(),
   ));
 }

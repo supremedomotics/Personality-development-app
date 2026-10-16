@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../ai/ai_state.dart';
 import '../app_state.dart';
 import '../core/models.dart';
 import '../core/session.dart';
@@ -25,6 +26,7 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
   late final DateTime _start;
   Duration _elapsed = Duration.zero;
   bool _saving = false;
+  bool _thinking = false;
   String? _saveError;
 
   SessionController get c => widget.controller;
@@ -46,19 +48,38 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
     super.dispose();
   }
 
-  void _send() {
+  Future<void> _send() async {
     final text = _input.text.trim();
-    if (text.isEmpty) return;
-    setState(() {
-      if (c.phase == SessionPhase.retry) {
+    if (text.isEmpty || _thinking) return;
+    if (c.phase == SessionPhase.retry) {
+      setState(() {
         c.submitRetry(text);
-        _persist();
-      } else {
-        c.submitReply(text);
-        if (c.phase == SessionPhase.summary) _persist();
-      }
+        _input.clear();
+      });
+      _persist();
+      return;
+    }
+    final voice = ref.read(voiceProvider).voice;
+    setState(() {
+      _thinking = voice != null;
       _input.clear();
     });
+    await c.submitReplyAsync(
+      text,
+      reword: voice == null
+          ? null
+          : (line, reply) async {
+              final r = await voice.rephrase(
+                  personaName: c.scenario.persona,
+                  setting: c.scenario.setting,
+                  intendedLine: line,
+                  lastUserReply: reply);
+              return r.fromModel ? r.text : null;
+            },
+    );
+    if (!mounted) return;
+    setState(() => _thinking = false);
+    if (c.phase == SessionPhase.summary) _persist();
     _scrollDown();
   }
 
@@ -160,11 +181,12 @@ class _SessionScreenState extends ConsumerState<SessionScreen> {
       Expanded(
         child: ListView(controller: _scroll, padding: const EdgeInsets.all(16), children: turns),
       ),
+      if (_thinking) const LinearProgressIndicator(),
       _Composer(
         controller: _input,
         hint: 'Type your reply (voice input is not installed yet)',
-        onSend: _send,
-        onEnd: () => setState(c.endEarly),
+        onSend: _thinking ? null : _send,
+        onEnd: _thinking ? null : () => setState(c.endEarly),
         label: 'Reply ${c.replyCount + 1} of ${3}',
       ),
     ]);
@@ -383,7 +405,7 @@ class _Composer extends StatelessWidget {
   const _Composer({required this.controller, required this.hint, required this.onSend, required this.onEnd, required this.label});
   final TextEditingController controller;
   final String hint, label;
-  final VoidCallback onSend;
+  final VoidCallback? onSend;
   final VoidCallback? onEnd;
 
   @override

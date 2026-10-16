@@ -57,12 +57,13 @@ class SessionRecord {
     required this.isBaseline,
     required this.personaLines,
     required this.replies,
+    List<String>? personaSources,
     this.assessment,
     this.retry,
     this.completedAt,
     this.endedEarly = false,
     this.rubricVersion = 1,
-  });
+  }) : personaSources = personaSources ?? List.filled(personaLines.length, 'scripted', growable: true);
 
   final String id;
   final DateTime startedAt;
@@ -70,6 +71,9 @@ class SessionRecord {
   final String targetCriterion;
   final bool isBaseline;
   final List<String> personaLines;
+
+  /// Parallel to [personaLines]: 'scripted' or 'local-llm' (reworded by a local model).
+  final List<String> personaSources;
   final List<Utterance> replies;
   Assessment? assessment;
   RetryRecord? retry;
@@ -84,6 +88,7 @@ class SessionRecord {
         'target': targetCriterion,
         'baseline': isBaseline,
         'persona': personaLines,
+        'psrc': personaSources,
         'replies': replies.map((r) => r.toJson()).toList(),
         'assessment': assessment?.toJson(),
         'retry': retry?.toJson(),
@@ -99,6 +104,7 @@ class SessionRecord {
         targetCriterion: j['target']! as String,
         isBaseline: j['baseline']! as bool,
         personaLines: (j['persona']! as List).cast<String>(),
+        personaSources: (j['psrc'] as List?)?.cast<String>(),
         replies: (j['replies']! as List)
             .map((r) => Utterance.fromJson((r as Map).cast<String, Object?>()))
             .toList(),
@@ -225,6 +231,7 @@ class SessionController {
           rubricVersion: rubric.version,
         ) {
     record.personaLines.add(scenario.opening);
+    record.personaSources.add('scripted');
   }
 
   final DailyMission mission;
@@ -257,8 +264,35 @@ class SessionController {
     final line = _run.reply(u);
     record.replies.add(u);
     record.personaLines.add(line.text);
+    record.personaSources.add('scripted');
     if (_run.finished) _finishRoleplay();
     return line.text;
+  }
+
+  /// Like [submitReply], then optionally lets [reword] (e.g. a local LLM) change
+  /// the persona's WORDING. The scripted line already decided the meaning, the
+  /// flags and the scoring; if [reword] returns null or throws, the scripted
+  /// line stands.
+  Future<String> submitReplyAsync(
+    String text, {
+    Future<String?> Function(String scriptedLine, String userReply)? reword,
+    double? asrConfidence,
+    bool corrected = false,
+  }) async {
+    final scripted = submitReply(text, asrConfidence: asrConfidence, corrected: corrected);
+    if (reword == null) return scripted;
+    final idx = record.personaLines.length - 1;
+    try {
+      final alt = await reword(scripted, text.trim());
+      if (alt != null && alt.trim().isNotEmpty && idx < record.personaLines.length) {
+        record.personaLines[idx] = alt.trim();
+        record.personaSources[idx] = 'local-llm';
+        return alt.trim();
+      }
+    } catch (_) {
+      // keep the scripted line
+    }
+    return scripted;
   }
 
   /// Graceful early end: assesses whatever was said, if enough evidence exists.

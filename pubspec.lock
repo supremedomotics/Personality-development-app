@@ -154,7 +154,7 @@ packages:
     source: hosted
     version: "3.1.2"
   crypto:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: crypto
       sha256: c8ea0233063ba03258fbcf2ca4d6dadfefe14f02fab57702265467a19f27fadf
@@ -371,6 +371,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.1"
+  llama_flutter_android:
+    dependency: "direct main"
+    description:
+      name: llama_flutter_android
+      sha256: "7f31b242a8a19ad2ee3a7cbf1ed4ac3bb17c19d4e360d19ae1ea24bdd86f5b05"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.6"
   logging:
     dependency: transitive
     description:
