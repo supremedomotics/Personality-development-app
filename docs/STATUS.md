@@ -3,7 +3,7 @@
 Nothing is listed as working unless the verification is stated. "Tests" = automated, run in CI and in the dev container.
 
 ## Build and test
-- Flutter 3.47.7 / Dart 3.13.5. `dart analyze` clean. **112 tests passing locally**.
+- Flutter 3.47.7 / Dart 3.13.5. `dart analyze` clean. **124 tests passing locally**.
 - GitHub Actions (`android-build`) runs analyze + tests and builds two APKs on every push. Run 1 (commit 64450e7) built both APKs successfully; run 2 failed in `sdkmanager` during SDK setup (environment, not code; not root-caused); run 3 succeeded; later runs are in progress. See `docs/ANDROID_BUILD.md`.
 - No build has been installed or run on any phone. **Nothing has been seen running on the S23 Ultra.**
 
@@ -14,7 +14,7 @@ Nothing is listed as working unless the verification is stated. "Tests" = automa
 - Session lifecycle (roleplay → feedback → retry → summary, early end, save-failure handling); retry not double counted.
 - Local persistence (SQLite/Drift): atomic save of session + skill book + missions, export, delete-all (data layer only).
 - Real-world missions as if-then plans, self-reported completion with reflection; atomic persistence; failed saves leave state unchanged.
-- Daily and weekly reports as pure functions of stored records (trend direction, repeated mistakes, best/worst, retention after 7+ days, priorities, caveats).
+- Daily, weekly and monthly reports as pure functions of stored records (trend direction, repeated mistakes, best/worst, retention after 7+ days, per-criterion first-score vs recent with the sessions behind each line, priorities capped at three, adherence, caveats). Next-month plan is a 28-day TEMPLATE (reassessment on days 1 and 28, weekly retention reviews, weighted practice on the top priorities); the real daily session is still chosen by the planner.
 - UI: Today, Reports, Missions, Models tabs; live text session; feedback with quoted evidence; transcript correction; retry; summary.
 - Local-model integration **behind interfaces** (`LocalModelRuntime`, `PersonaVoice`, `ModelManager`): the model can only re-word the persona's line; output validated (timeout+cancel, no invented numbers, think-blocks stripped, character-break rejected) with scripted fallback; scores provably unaffected (tested). Models screen never says "verified" without a publisher digest (none stored).
 - Privacy hardening: OS backup/device-transfer disabled (found enabled-by-default), IME suggestions/learning off on text fields, manifest guard tests, CI manifest assertion. See `docs/PRIVACY_AND_SECURITY.md`.
@@ -27,7 +27,7 @@ Nothing is listed as working unless the verification is stated. "Tests" = automa
 ## PENDING (not built)
 - Voice: microphone capture, VAD, local ASR (sherpa-onnx), TTS, acoustic measures, pronunciation.
 - Speaking and presentation modules (scenarios + rubrics); only negotiation exists.
-- Monthly report and next-month plan generator; baseline reassessment sessions; delayed-retention scheduling UI.
+- Baseline-reassessment *session type* (the plan schedules it, but the app has no hint-free assessment mode yet); per-skill progress charts; delayed-retention scheduling UI.
 - Settings/Privacy screen incl. user-facing export/delete; research/methodology screen.
 - Encryption at rest; account sign-in (Google/Apple); sync; conflict resolution.
 - Onboarding, goals, device-capability detection, language packs, translation.

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app_state.dart';
+import '../core/monthly.dart';
 import '../core/report.dart';
+import '../core/rubric.dart';
 import '../core/scenario.dart';
 import 'theme.dart';
 
@@ -14,11 +16,11 @@ class ReportsScreen extends ConsumerWidget {
     final data = ref.watch(appControllerProvider);
     final now = ref.watch(clockProvider)();
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Reports'),
-          bottom: const TabBar(tabs: [Tab(text: 'Today'), Tab(text: 'This week')]),
+          bottom: const TabBar(tabs: [Tab(text: 'Today'), Tab(text: 'This week'), Tab(text: 'This month')]),
         ),
         body: SafeArea(
           child: data.when(
@@ -30,7 +32,9 @@ class ReportsScreen extends ConsumerWidget {
                   sessions: d.sessions, missions: d.missions, day: dayKey(now, tz), tz: tz);
               final weekly = buildWeeklyReport(
                   sessions: d.sessions, missions: d.missions, endDay: now.toUtc().add(tz), tz: tz);
-              return TabBarView(children: [_Daily(r: daily), _Weekly(r: weekly)]);
+              final monthly = buildMonthlyReport(
+                  sessions: d.sessions, missions: d.missions, endDay: now.toUtc().add(tz), tz: tz);
+              return TabBarView(children: [_Daily(r: daily), _Weekly(r: weekly), _Monthly(r: monthly)]);
             },
           ),
         ),
@@ -130,6 +134,67 @@ class _Weekly extends StatelessWidget {
         for (final p in r.priorities) Text('• $p'),
       ],
       const SizedBox(height: 16),
+      for (final c in r.caveats) Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(c, style: theme.textTheme.labelMedium)),
+    ]);
+  }
+}
+
+class _Monthly extends StatelessWidget {
+  const _Monthly({required this.r});
+  final MonthlyReport r;
+
+  static const _dirText = {
+    Direction.improving: 'improving',
+    Direction.regressing: 'regressing',
+    Direction.stagnating: 'stagnating below pass mark',
+    Direction.stable: 'stable',
+    Direction.insufficient: 'not enough data (needs 3+)',
+  };
+
+  String _label(String id) => negotiationRubric.criteria.firstWhere((c) => c.id == id).label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(key: const Key('monthly-list'), padding: const EdgeInsets.all(16), children: [
+      Text('${r.fromDay} to ${r.toDay}', style: theme.textTheme.labelMedium),
+      Text('${r.sessionsCompleted} session(s) on ${r.daysPracticed} of ${r.windowDays} days', style: theme.textTheme.titleLarge),
+      Text('Adherence ${(r.adherence * 100).round()}%. Practice volume is not the same as skill: judge by the scores below.', style: theme.textTheme.labelMedium),
+      const SizedBox(height: 12),
+      if (r.criteria.isEmpty) const Text('No scored sessions this month yet.'),
+      for (final c in r.criteria)
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(c.label),
+          subtitle: Text(
+              'First score ${c.baseline} → recent ${c.current.round()} (${c.delta >= 0 ? '+' : ''}${c.delta.round()}), ${_dirText[c.direction]}, n=${c.n}\nBased on sessions: ${c.evidenceSessionIds.length}'),
+        ),
+      const SizedBox(height: 8),
+      Text(r.retentionChecks == 0
+          ? 'Retention: no earlier pass was re-tested 7+ days later yet.'
+          : 'Retention: ${r.retentionHeld} of ${r.retentionChecks} earlier passes held after 7+ days.'),
+      Text('Missions: ${r.missionsDone} of ${r.missionsCreated} done (self-reported).'),
+      const SizedBox(height: 12),
+      Text('Next month: focus on', style: theme.textTheme.titleMedium),
+      if (r.priorities.isEmpty) const Text('No weak or regressing skill found: rotate through all, and reassess on day 1.'),
+      for (final p in r.priorities) Text('• ${_label(p)}'),
+      const SizedBox(height: 12),
+      Text('28-day template', style: theme.textTheme.titleMedium),
+      Text('A guide, not a fixed curriculum. Each day the app still picks your session from your latest results.', style: theme.textTheme.labelMedium),
+      for (final d in r.plan.take(14))
+        Text('Day ${d.day}: ${d.kind == DayKind.reassess ? 'Reassessment' : '${d.kind == DayKind.review ? 'Review' : 'Train'}: ${_label(d.criterionId!)}'}'),
+      ExpansionTile(
+        title: const Text('Days 15 to 28'),
+        tilePadding: EdgeInsets.zero,
+        children: [
+          for (final d in r.plan.skip(14))
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Day ${d.day}: ${d.kind == DayKind.reassess ? 'Reassessment' : '${d.kind == DayKind.review ? 'Review' : 'Train'}: ${_label(d.criterionId!)}'}'),
+            ),
+        ],
+      ),
+      const SizedBox(height: 12),
       for (final c in r.caveats) Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(c, style: theme.textTheme.labelMedium)),
     ]);
   }

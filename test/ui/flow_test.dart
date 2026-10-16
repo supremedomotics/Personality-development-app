@@ -242,4 +242,27 @@ void main() {
         scrollable: find.descendant(of: find.byKey(const Key('weekly-list')), matching: find.byType(Scrollable)));
     expect(find.textContaining('Fewer than 3 scored sessions'), findsOneWidget);
   });
+
+  testWidgets('monthly tab shows the report, template plan and caveats', (t) async {
+    final repo = MemoryRepo();
+    await pumpApp(t, repo);
+    await t.tap(find.text('Start session'));
+    await t.pumpAndSettle();
+    await reply(t, 'Okay, I can give you 10 percent off the whole quote right now to close this today.');
+    await reply(t, 'Fine, I can also take another 5 percent off if that helps you decide on this.');
+    await reply(t, 'We can see how things go and talk again whenever it suits you in the coming weeks.');
+    await tapText(t, find.text('Skip retry and finish'));
+    await tapText(t, find.text('Done'));
+    await t.tap(find.text('Reports'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('This month'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('1 session(s) on 1 of 30 days'), findsOneWidget);
+    expect(find.textContaining('First score'), findsWidgets);
+    final scroll = find.descendant(of: find.byKey(const Key('monthly-list')), matching: find.byType(Scrollable));
+    await t.scrollUntilVisible(find.text('28-day template'), 300, scrollable: scroll);
+    expect(find.textContaining('Day 1: Reassessment'), findsOneWidget);
+    await t.scrollUntilVisible(find.textContaining('not a validated'), 300, scrollable: scroll);
+    expect(find.textContaining('tentative'), findsOneWidget);
+  });
 }
