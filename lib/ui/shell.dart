@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'home_screen.dart';
 import 'missions_screen.dart';
-import 'models_screen.dart';
+import 'settings_screen.dart';
 import 'reports_screen.dart';
 
 /// Primary navigation: three top-level destinations (limit is 5).
@@ -21,8 +21,7 @@ class _ShellState extends State<Shell> {
           const HomeScreen(),
           const ReportsScreen(),
           const MissionsScreen(),
-          // Built only when opened: it touches storage, which must not happen at launch.
-          if (_i == 3) const ModelsScreen() else const SizedBox.shrink(),
+          const SettingsScreen(),
         ]),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _i,
@@ -31,7 +30,7 @@ class _ShellState extends State<Shell> {
             NavigationDestination(icon: Icon(Icons.today_outlined), selectedIcon: Icon(Icons.today), label: 'Today'),
             NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights), label: 'Reports'),
             NavigationDestination(icon: Icon(Icons.flag_outlined), selectedIcon: Icon(Icons.flag), label: 'Missions'),
-            NavigationDestination(icon: Icon(Icons.memory_outlined), selectedIcon: Icon(Icons.memory), label: 'Models'),
+            NavigationDestination(icon: Icon(Icons.shield_outlined), selectedIcon: Icon(Icons.shield), label: 'Settings'),
           ],
         ),
       );

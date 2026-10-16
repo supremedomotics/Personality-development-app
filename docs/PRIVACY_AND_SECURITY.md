@@ -38,4 +38,4 @@ Before this review the manifest did not set `allowBackup`, so Android's default 
 - Independent review before any claim beyond "designed to be offline".
 
 ## 7. Deletion and export
-Implemented in the data layer and tested (`exportAll`, `deleteAll`); **no user-facing screen yet**.
+Settings → *Export my data* writes a JSON file (all sessions, transcripts, skill state, missions) to the app's external files folder (reachable by `adb pull`); the file is **plaintext** and the screen says so. *Delete all my data* asks for confirmation, then erases sessions, skill book and missions in one transaction; it does not touch previously exported files or models. Both are covered by widget tests with an in-memory repository and by data-layer tests on real SQLite. Not covered: secure overwrite (SQLite/flash may retain deleted pages until reused; no vacuum or crypto-erase yet).

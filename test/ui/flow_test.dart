@@ -14,6 +14,10 @@ class MemoryRepo implements ProgressRepository {
   List<Mission> _missions = [];
   bool failNextSave = false;
   bool failMissionSave = false;
+  bool failDelete = false;
+  int get sessionCount => _s.length;
+  int get missionCount => _missions.length;
+  bool get bookEmpty => _book.states.isEmpty;
 
   @override
   Future<void> saveSession(SessionRecord r) async => _s[r.id] = r;
@@ -46,6 +50,7 @@ class MemoryRepo implements ProgressRepository {
   Future<Map<String, Object?>> exportAll() async => {};
   @override
   Future<void> deleteAll() async {
+    if (failDelete) throw StateError('io');
     _s.clear();
     _missions = [];
     _book = SkillBook();
@@ -72,6 +77,8 @@ Future<void> reveal(WidgetTester t, Finder f) async {
 
 Future<void> tapText(WidgetTester t, Finder f) async {
   await reveal(t, f);
+  await t.ensureVisible(f);
+  await t.pumpAndSettle();
   await t.tap(f);
   await t.pumpAndSettle();
 }

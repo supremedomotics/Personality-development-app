@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../ai/local_model_test.dart' show FakeRuntime;
-import 'flow_test.dart' show MemoryRepo;
+import 'flow_test.dart' show MemoryRepo, tapText;
 
 class Fs implements ModelFs {
   Fs(this.sizes);
@@ -38,8 +38,9 @@ Future<void> pump(WidgetTester t, {required Map<String, int> files, LocalModelRu
     child: const CeoForgeApp(),
   ));
   await t.pumpAndSettle();
-  await t.tap(find.text('Models'));
+  await t.tap(find.text('Settings'));
   await t.pumpAndSettle();
+  await tapText(t, find.text('On-device models'));
 }
 
 void main() {
@@ -87,6 +88,8 @@ void main() {
     await t.pumpAndSettle();
     expect(find.textContaining('Could not load'), findsOneWidget);
     expect(find.textContaining('scripted replies'), findsOneWidget);
+    await t.pageBack();
+    await t.pumpAndSettle();
     await t.tap(find.text('Today'));
     await t.pumpAndSettle();
     expect(find.text('Start session'), findsOneWidget);
@@ -96,6 +99,8 @@ void main() {
     final rt = FakeRuntime(loaded: false, chunks: ['Hmm, so there is flexibility in your price after all.']);
     await pump(t, files: {'/m/Qwen3-1.7B-Q4_K_M.gguf': 5000000}, runtime: rt);
     await t.tap(find.text('Load for role-play'));
+    await t.pumpAndSettle();
+    await t.pageBack();
     await t.pumpAndSettle();
     await t.tap(find.text('Today'));
     await t.pumpAndSettle();
