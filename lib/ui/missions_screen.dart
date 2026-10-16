@@ -151,12 +151,15 @@ class _ReflectDialogState extends State<_ReflectDialog> {
             controller: _outcome,
             maxLines: 3,
             autofocus: true,
+            enableSuggestions: false,
+            autocorrect: false,
+            enableIMEPersonalizedLearning: false,
             decoration: InputDecoration(
                 labelText: 'What did you do and how did they respond?',
                 errorText: _showError ? 'Write at least a few words.' : null),
           ),
           const SizedBox(height: 12),
-          TextField(controller: _lesson, maxLines: 2, decoration: const InputDecoration(labelText: 'Lesson (optional)')),
+          TextField(controller: _lesson, maxLines: 2, enableSuggestions: false, autocorrect: false, enableIMEPersonalizedLearning: false, decoration: const InputDecoration(labelText: 'Lesson (optional)')),
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),

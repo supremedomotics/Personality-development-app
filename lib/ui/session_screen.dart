@@ -416,6 +416,9 @@ class _Composer extends StatelessWidget {
             controller: controller,
             minLines: 2,
             maxLines: 5,
+            enableSuggestions: false,
+            autocorrect: false,
+            enableIMEPersonalizedLearning: false,
             textCapitalization: TextCapitalization.sentences,
             decoration: InputDecoration(labelText: label, hintText: hint),
           ),
@@ -510,7 +513,7 @@ class _TranscriptDialogState extends State<_TranscriptDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
         title: const Text('Correct the transcript'),
-        content: TextField(controller: _ctl, maxLines: 6, autofocus: true),
+        content: TextField(controller: _ctl, maxLines: 6, autofocus: true, enableSuggestions: false, autocorrect: false, enableIMEPersonalizedLearning: false),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(onPressed: () => Navigator.pop(context, _ctl.text), child: const Text('Re-assess')),

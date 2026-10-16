@@ -29,12 +29,13 @@ jobs:
       - run: flutter test
       - name: Build release APK (debug-signed, sideload only)
         run: flutter build apk --release
-      - name: Inspect merged manifest permissions
+      - name: Verify merged release manifest (permissions + backup)
         run: |
           set -e
-          sudo apt-get -qq update >/dev/null && sudo apt-get -qq install -y aapt >/dev/null || true
+          sudo apt-get -qq update >/dev/null && sudo apt-get -qq install -y aapt >/dev/null
           APK=build/app/outputs/flutter-apk/app-release.apk
-          (aapt dump permissions "$APK" || echo "aapt unavailable") | tee permissions.txt
+          # No permissions are expected for the offline prototype. If you intentionally add one, list it here.
+          tools/check_manifest.sh "$APK" | tee permissions.txt
       - uses: actions/upload-artifact@v4
         with:
           name: ceo-forge-text-prototype-apk
