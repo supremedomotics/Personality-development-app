@@ -108,8 +108,13 @@ class SkillState {
 }
 
 class SkillBook {
-  SkillBook([Map<String, SkillState>? states]) : states = states ?? {};
+  SkillBook([Map<String, SkillState>? states, Map<String, int>? notApplicable])
+      : states = states ?? {},
+        notApplicable = notApplicable ?? {};
   final Map<String, SkillState> states;
+
+  /// Consecutive full sessions in which a conditional criterion never applied.
+  final Map<String, int> notApplicable;
 
   /// Records one scored attempt. [now] is injected so behaviour is reproducible.
   void record({
@@ -154,13 +159,23 @@ class SkillBook {
     s.nextReview = now.add(Duration(days: kReviewIntervalsDays[s.box]));
   }
 
-  Map<String, Object?> toJson() =>
-      {for (final e in states.entries) e.key: e.value.toJson()};
+  Map<String, Object?> toJson() => {
+        'states': {for (final e in states.entries) e.key: e.value.toJson()},
+        'na': notApplicable,
+      };
 
-  factory SkillBook.fromJson(Map<String, Object?> j) => SkillBook({
-        for (final e in j.entries)
-          e.key: SkillState.fromJson((e.value! as Map).cast<String, Object?>())
-      });
+  factory SkillBook.fromJson(Map<String, Object?> j) {
+    // Legacy format (pre-'na'): the map itself was key -> state.
+    final raw = (j.containsKey('states') ? j['states'] : j)! as Map;
+    return SkillBook({
+      for (final e in raw.entries)
+        e.key as String:
+            SkillState.fromJson((e.value! as Map).cast<String, Object?>())
+    }, {
+      for (final e in ((j['na'] as Map?) ?? const {}).entries)
+        e.key as String: e.value as int
+    });
+  }
 }
 
 class DailyMission {
@@ -195,7 +210,7 @@ const _successText = {
   'ask': 'Ask one open "what" or "how" question before you mention any price movement.',
   'hold': 'Make no price concession until you have asked what is driving the request.',
   'value': 'Use at least two outcome or risk terms to justify the price.',
-  'trade': 'If you give anything, attach a condition ("if we...").',
+  'trade': 'Make one deliberate concession, and attach a condition ("if we...") so you get something back.',
   'commit': 'End with a specific next step and a time.',
   'clarity': 'Keep every reply under 90 words with no filler or hedges.',
 };
@@ -219,7 +234,13 @@ class LearningPlanner {
       final s = book.states[key];
       double p;
       String why;
-      if (s == null) {
+      final naCount = book.notApplicable[key] ?? 0;
+      if (s == null && spec.conditional && naCount >= 2) {
+        // Never triggered in recent sessions: stop insisting on a baseline.
+        // Back off further with every session in which it never came up.
+        p = math.max(0, 30 - 10 * (naCount - 2)).toDouble();
+        why = 'Needs a concession to be assessed; it did not come up in $naCount sessions, so other skills come first.';
+      } else if (s == null) {
         p = 150 + spec.weight * 10;
         why = hasHistory
             ? 'Not yet assessed: establishing a baseline.'
@@ -281,8 +302,17 @@ class LearningPlanner {
     required Assessment assessment,
     required String scenarioId,
     required DateTime now,
+    Rubric rubric = negotiationRubric,
   }) {
+    for (final c in assessment.criteria.where((c) => !c.assessed)) {
+      final key = '${assessment.rubricId}.${c.id}';
+      if (assessment.insufficientEvidence) break;
+      if (rubric.spec(c.id).conditional) {
+        book.notApplicable[key] = (book.notApplicable[key] ?? 0) + 1;
+      }
+    }
     for (final c in assessment.criteria.where((c) => c.assessed)) {
+      book.notApplicable.remove('${assessment.rubricId}.${c.id}');
       book.record(
         key: '${assessment.rubricId}.${c.id}',
         score: c.score!,

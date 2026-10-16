@@ -13,6 +13,7 @@ class CriterionSpec {
     required this.anchors,
     required this.technique,
     required this.measuredBy,
+    this.conditional = false,
   });
 
   final String id;
@@ -30,6 +31,11 @@ class CriterionSpec {
 
   /// Honest description of how it is measured (heuristic limits).
   final String measuredBy;
+
+  /// True when the criterion can only be assessed if a specific event occurs
+  /// (e.g. trading requires a concession). Used by the planner to avoid
+  /// proposing a criterion forever that the user's play never triggers.
+  final bool conditional;
 }
 
 class Rubric {
@@ -98,6 +104,7 @@ const negotiationRubric = Rubric('negotiation', 1, [
     },
     technique: 'Never give without getting: "If we adjust X, I can look at Y."',
     measuredBy: 'Applies only if a concession was made. Detects condition words (if / in exchange / provided / as long as).',
+    conditional: true,
   ),
   CriterionSpec(
     id: 'commit',

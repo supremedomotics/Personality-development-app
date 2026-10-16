@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:ceo_forge/core/assessment_engine.dart';
 import 'package:ceo_forge/core/models.dart';
 import 'package:ceo_forge/core/planner.dart';
 import 'package:ceo_forge/core/rubric.dart';
@@ -15,6 +16,7 @@ DailyMission plan(SkillBook b, DateTime now, {String? last}) => const LearningPl
     book: b, now: now, scenarios: negotiationScenarios, rubric: negotiationRubric, lastScenarioId: last);
 
 void main() {
+  tradeTests();
   test('first day is a baseline, one primary objective, 10 minutes', () {
     final m = plan(SkillBook(), d0);
     expect(m.isBaseline, isTrue);
@@ -192,6 +194,88 @@ void main() {
           expect(s.strongerExamples[c.id], isNotNull, reason: '${s.id}/${c.id}');
         }
       }
+    });
+  });
+}
+
+void tradeTests() {
+  group('conditional criterion (trade) planning', () {
+    // A session where the user never concedes: trade is not applicable.
+    Assessment noConcession() => const AssessmentEngine().assess(negotiationRubric, [
+          const Utterance(turn: 1, text: 'What matters most to you here? Help me understand what the other quotes include.'),
+          const Utterance(turn: 2, text: 'The support plan and warranty reduce your risk of rework after handover for years.'),
+          const Utterance(turn: 3, text: 'I will send the revised scope by Friday and you confirm by Monday, agreed.'),
+        ]);
+
+    test('trade mission explicitly asks for one conditional concession', () {
+      final b = SkillBook();
+      for (final id in ['ask', 'hold', 'value', 'commit', 'clarity']) {
+        rec(b, id, 95, d0);
+      }
+      final m = plan(b, d0.add(const Duration(hours: 1)));
+      expect(m.criterionId, 'trade');
+      expect(m.isBaseline, isTrue);
+      expect(m.successCriterion, contains('concession'));
+    });
+
+    test('NA counter increments only for conditional criteria and only on sufficient evidence', () {
+      final b = SkillBook();
+      const LearningPlanner().applyAssessment(book: b, assessment: noConcession(), scenarioId: 's', now: d0);
+      expect(b.notApplicable.keys, ['negotiation.trade']);
+      final thin = const AssessmentEngine().assess(negotiationRubric, [const Utterance(turn: 1, text: 'No.')]);
+      const LearningPlanner().applyAssessment(book: b, assessment: thin, scenarioId: 's', now: d0);
+      expect(b.notApplicable['negotiation.trade'], 1);
+    });
+
+    test('after 2 sessions without a concession trade yields to a genuinely weak skill', () {
+      final b = SkillBook();
+      for (var i = 0; i < 2; i++) {
+        const LearningPlanner().applyAssessment(
+            book: b, assessment: noConcession(), scenarioId: 's$i', now: d0.add(Duration(days: i)));
+      }
+      rec(b, 'clarity', 30, d0.add(const Duration(days: 2))); // a real weakness appears
+      final m = plan(b, d0.add(const Duration(days: 3)));
+      expect(m.criterionId, 'clarity');
+    });
+
+    test('back-off deepens: after 5 inapplicable sessions trade never beats a strong skill', () {
+      final b = SkillBook();
+      for (var i = 0; i < 5; i++) {
+        const LearningPlanner().applyAssessment(
+            book: b, assessment: noConcession(), scenarioId: 's$i', now: d0.add(Duration(days: i)));
+      }
+      final m = plan(b, d0.add(const Duration(days: 5)));
+      expect(m.criterionId, isNot('trade'));
+      // and the reason is stated honestly when it is the candidate
+      expect(b.notApplicable['negotiation.trade'], 5);
+    });
+
+    test('never-practised ordinary criteria still get baseline priority', () {
+      final b = SkillBook();
+      rec(b, 'ask', 90, d0);
+      expect(plan(b, d0.add(const Duration(days: 1))).isBaseline, isTrue);
+    });
+
+    test('a later concession assessment clears the counter and creates state', () {
+      final b = SkillBook();
+      const LearningPlanner().applyAssessment(book: b, assessment: noConcession(), scenarioId: 's', now: d0);
+      final withTrade = const AssessmentEngine().assess(negotiationRubric, [
+        const Utterance(turn: 1, text: 'What matters most to you here? Help me understand what the other quotes include.'),
+        const Utterance(turn: 2, text: 'If you confirm the lighting scope and a 40 percent deposit, I can look at 5 percent off.'),
+        const Utterance(turn: 3, text: 'I will send the revised scope by Friday and you confirm by Monday, agreed.'),
+      ]);
+      const LearningPlanner().applyAssessment(book: b, assessment: withTrade, scenarioId: 's2', now: d0.add(const Duration(days: 1)));
+      expect(b.notApplicable.containsKey('negotiation.trade'), isFalse);
+      expect(b.states['negotiation.trade']!.baseline, 100);
+    });
+
+    test('skill book JSON round-trips including NA counters; legacy format still loads', () {
+      final b = SkillBook();
+      const LearningPlanner().applyAssessment(book: b, assessment: noConcession(), scenarioId: 's', now: d0);
+      final back = SkillBook.fromJson(jsonDecode(jsonEncode(b.toJson())) as Map<String, Object?>);
+      expect(back.notApplicable, b.notApplicable);
+      final legacy = <String, Object?>{for (final e in b.states.entries) e.key: e.value.toJson()};
+      expect(SkillBook.fromJson(legacy).states.length, b.states.length);
     });
   });
 }
