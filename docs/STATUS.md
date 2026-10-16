@@ -19,6 +19,12 @@ Last updated: end of work session 1. Only items with a stated verification are c
 | UI: Home/mission, live text session, feedback with evidence, transcript correction, retry, summary, save-failure + retry | 5 widget tests |
 Total: 55 tests passing, `dart analyze` clean.
 
+## Offline-AI benchmark status
+- Harness `tools/bench_app` written; Dart code **type-checks against the real `llama_flutter_android` 0.2.6 and `sherpa_onnx` 1.13.8 APIs**; WER logic unit-tested (4 tests).
+- **No benchmark has been run.** No APK has been built (no Android SDK here; `dl.google.com` and `huggingface.co` are blocked by this environment's network policy). No model has been downloaded, loaded or verified. No latency/RAM/WER/thermal number exists.
+- Model licenses: sherpa-onnx Apache-2.0 and llama_flutter_android MIT verified from project pages; Qwen3 Apache-2.0 only from secondary sources (UNVERIFIED).
+- See `docs/OFFLINE_AI_ARCHITECTURE.md`, `docs/BENCHMARK_PROTOCOL.md`.
+
 ## NOT implemented yet (do not assume)
 - Voice input/output, VAD, local ASR, TTS, local LLM, translation, pronunciation, acoustic measures.
 - Speaking/presentation/other modules (only negotiation has scenarios + rubric).

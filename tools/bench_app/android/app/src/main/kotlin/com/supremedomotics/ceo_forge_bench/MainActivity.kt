@@ -1,0 +1,5 @@
+package com.supremedomotics.ceo_forge_bench
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()
