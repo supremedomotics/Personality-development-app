@@ -1,4 +1,5 @@
 import 'package:ceo_forge/app_state.dart';
+import 'package:ceo_forge/core/missions.dart';
 import 'package:ceo_forge/core/planner.dart';
 import 'package:ceo_forge/core/session.dart';
 import 'package:ceo_forge/data/database.dart';
@@ -10,18 +11,29 @@ import 'package:flutter_test/flutter_test.dart';
 class MemoryRepo implements ProgressRepository {
   final Map<String, SessionRecord> _s = {};
   SkillBook _book = SkillBook();
+  List<Mission> _missions = [];
   bool failNextSave = false;
+  bool failMissionSave = false;
 
   @override
   Future<void> saveSession(SessionRecord r) async => _s[r.id] = r;
   @override
-  Future<void> saveCompleted(SessionRecord r, SkillBook b) async {
+  Future<void> saveCompleted(SessionRecord r, SkillBook b, {List<Mission>? missions}) async {
     if (failNextSave) {
       failNextSave = false;
       throw StateError('disk full');
     }
     _s[r.id] = r;
     _book = SkillBook.fromJson(b.toJson());
+    if (missions != null) _missions = missions;
+  }
+
+  @override
+  Future<List<Mission>> missions() async => _missions;
+  @override
+  Future<void> saveMissions(List<Mission> m) async {
+    if (failMissionSave) throw StateError('disk full');
+    _missions = m;
   }
 
   @override
@@ -35,6 +47,7 @@ class MemoryRepo implements ProgressRepository {
   @override
   Future<void> deleteAll() async {
     _s.clear();
+    _missions = [];
     _book = SkillBook();
   }
 }
@@ -157,5 +170,76 @@ void main() {
     await t.scrollUntilVisible(fixed, -300, scrollable: find.byType(Scrollable).first);
     expect(fixed, findsOneWidget);
     expect(find.textContaining('conceded on price before asking'), findsNothing);
+  });
+
+  testWidgets('finishing a scored session creates a mission; completing it with a reflection persists', (t) async {
+    final repo = MemoryRepo();
+    await pumpApp(t, repo);
+    await t.tap(find.text('Start session'));
+    await t.pumpAndSettle();
+    await reply(t, 'Okay, I can give you 10 percent off the whole quote right now to close this today.');
+    await reply(t, 'Fine, I can also take another 5 percent off if that helps you decide on this.');
+    await reply(t, 'We can see how things go and talk again whenever it suits you in the coming weeks.');
+    await tapText(t, find.text('Skip retry and finish'));
+    expect(repo._missions.length, 1);
+    expect(repo._missions.single.status, MissionStatus.open);
+    await tapText(t, find.text('Done'));
+
+    await t.tap(find.text('Missions'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('When '), findsOneWidget);
+    await t.tap(find.text('I did this'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Save')); // empty outcome is rejected
+    await t.pumpAndSettle();
+    expect(find.text('Write at least a few words.'), findsOneWidget);
+    await t.enterText(find.byType(TextField).first, 'Asked what drove the discount; they wanted speed.');
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    expect(repo._missions.single.status, MissionStatus.done);
+    expect(repo._missions.single.outcome, contains('wanted speed'));
+    expect(find.textContaining('What happened:'), findsOneWidget);
+  });
+
+  testWidgets('a failed mission save leaves the mission open and says so', (t) async {
+    final repo = MemoryRepo();
+    await pumpApp(t, repo);
+    await t.tap(find.text('Start session'));
+    await t.pumpAndSettle();
+    await reply(t, 'Okay, I can give you 10 percent off the whole quote right now to close this today.');
+    await reply(t, 'Fine, I can also take another 5 percent off if that helps you decide on this.');
+    await reply(t, 'We can see how things go and talk again whenever it suits you in the coming weeks.');
+    await tapText(t, find.text('Skip retry and finish'));
+    await tapText(t, find.text('Done'));
+    await t.tap(find.text('Missions'));
+    await t.pumpAndSettle();
+    repo.failMissionSave = true;
+    await t.tap(find.text('Skip'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('Could not save this change'), findsOneWidget);
+    expect(find.text('I did this'), findsOneWidget, reason: 'mission must still be open on screen');
+    expect(repo._missions.single.status, MissionStatus.open);
+  });
+
+  testWidgets('reports tab shows today\'s saved session and the weekly caveats', (t) async {
+    final repo = MemoryRepo();
+    await pumpApp(t, repo);
+    await t.tap(find.text('Start session'));
+    await t.pumpAndSettle();
+    await reply(t, 'Okay, I can give you 10 percent off the whole quote right now to close this today.');
+    await reply(t, 'Fine, I can also take another 5 percent off if that helps you decide on this.');
+    await reply(t, 'We can see how things go and talk again whenever it suits you in the coming weeks.');
+    await tapText(t, find.text('Skip retry and finish'));
+    await tapText(t, find.text('Done'));
+    await t.tap(find.text('Reports'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('1 session(s)'), findsOneWidget);
+    expect(find.textContaining('Overall'), findsWidgets);
+    await t.tap(find.text('This week'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('1 session(s) on 1 day(s)'), findsOneWidget);
+    await t.scrollUntilVisible(find.textContaining('not a validated'), 300,
+        scrollable: find.descendant(of: find.byKey(const Key('weekly-list')), matching: find.byType(Scrollable)));
+    expect(find.textContaining('Fewer than 3 scored sessions'), findsOneWidget);
   });
 }

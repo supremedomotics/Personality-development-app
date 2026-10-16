@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/missions.dart';
 import 'core/planner.dart';
 import 'core/rubric.dart';
 import 'core/scenario.dart';
@@ -13,9 +14,10 @@ final repositoryProvider = Provider<ProgressRepository>((ref) => throw Unimpleme
 final clockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
 
 class AppData {
-  const AppData(this.book, this.sessions);
+  const AppData(this.book, this.sessions, [this.missions = const []]);
   final SkillBook book;
   final List<SessionRecord> sessions;
+  final List<Mission> missions;
 
   DailyMission mission(DateTime now) => const LearningPlanner().planDay(
         book: book,
@@ -41,7 +43,7 @@ class AppController extends AsyncNotifier<AppData> {
   @override
   Future<AppData> build() async {
     final r = ref.read(repositoryProvider);
-    return AppData(await r.loadBook(), await r.sessions());
+    return AppData(await r.loadBook(), await r.sessions(), await r.missions());
   }
 
   /// Sessions run on a copy of the book so an abandoned session cannot change progress.
@@ -50,14 +52,34 @@ class AppController extends AsyncNotifier<AppData> {
   /// Persists first, then updates memory: UI never shows progress that isn't saved.
   Future<void> complete(SessionController c) async {
     final repo = ref.read(repositoryProvider);
-    await repo.saveCompleted(c.record, c.book);
     final cur = state.requireValue;
-    state = AsyncData(AppData(c.book, [...cur.sessions, c.record]));
+    final fb = c.feedback;
+    // A real-world mission only follows a scored session.
+    final newMission = (fb != null && c.record.completedAt != null)
+        ? missionFor(sessionId: c.record.id, criterionId: fb.primaryCriterion, now: c.record.completedAt!)
+        : null;
+    final missions = [
+      ...cur.missions.where((m) => m.id != newMission?.id),
+      ?newMission,
+    ];
+    await repo.saveCompleted(c.record, c.book, missions: missions);
+    state = AsyncData(AppData(c.book, [...cur.sessions.where((s) => s.id != c.record.id), c.record], missions));
+  }
+
+  /// Applies [change] to a COPY, persists it, and only then replaces the
+  /// in-memory mission: a failed write leaves the visible state unchanged.
+  Future<void> updateMission(String id, void Function(Mission copy) change) async {
+    final cur = state.requireValue;
+    final copy = Mission.fromJson(cur.missions.firstWhere((m) => m.id == id).toJson());
+    change(copy);
+    final next = [for (final x in cur.missions) x.id == id ? copy : x];
+    await ref.read(repositoryProvider).saveMissions(next);
+    state = AsyncData(AppData(cur.book, cur.sessions, next));
   }
 
   Future<void> deleteEverything() async {
     await ref.read(repositoryProvider).deleteAll();
-    state = AsyncData(AppData(SkillBook(), const []));
+    state = AsyncData(AppData(SkillBook(), const [], const []));
   }
 }
 

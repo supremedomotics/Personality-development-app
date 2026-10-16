@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 
+import '../core/missions.dart';
 import '../core/planner.dart';
 import '../core/session.dart';
 
@@ -45,7 +46,9 @@ abstract class ProgressRepository {
   Future<void> saveSession(SessionRecord r);
 
   /// Atomically stores a finished session and the updated skill book.
-  Future<void> saveCompleted(SessionRecord r, SkillBook b);
+  Future<void> saveCompleted(SessionRecord r, SkillBook b, {List<Mission>? missions});
+  Future<List<Mission>> missions();
+  Future<void> saveMissions(List<Mission> m);
   Future<List<SessionRecord>> sessions();
   Future<SkillBook> loadBook();
   Future<void> saveBook(SkillBook b);
@@ -66,10 +69,26 @@ class DriftProgressRepository implements ProgressRepository {
           json: jsonEncode(r.toJson())));
 
   @override
-  Future<void> saveCompleted(SessionRecord r, SkillBook b) => db.transaction(() async {
+  Future<void> saveCompleted(SessionRecord r, SkillBook b, {List<Mission>? missions}) =>
+      db.transaction(() async {
         await saveSession(r);
         await saveBook(b);
+        if (missions != null) await saveMissions(missions);
       });
+
+  @override
+  Future<List<Mission>> missions() async {
+    final row = await (db.select(db.keyValues)..where((t) => t.k.equals('missions'))).getSingleOrNull();
+    if (row == null) return [];
+    return [
+      for (final m in jsonDecode(row.v) as List)
+        Mission.fromJson((m as Map).cast<String, Object?>())
+    ];
+  }
+
+  @override
+  Future<void> saveMissions(List<Mission> m) => db.into(db.keyValues).insertOnConflictUpdate(
+      KeyValuesCompanion.insert(k: 'missions', v: jsonEncode([for (final x in m) x.toJson()])));
 
   @override
   Future<List<SessionRecord>> sessions() async {
@@ -101,6 +120,7 @@ class DriftProgressRepository implements ProgressRepository {
         'format': 'ceo-forge-export',
         'version': 1,
         'book': (await loadBook()).toJson(),
+        'missions': [for (final m in await missions()) m.toJson()],
         'sessions': [for (final s in await sessions()) s.toJson()],
       };
 

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:ceo_forge/core/missions.dart';
 import 'package:ceo_forge/core/planner.dart';
 import 'package:ceo_forge/core/rubric.dart';
 import 'package:ceo_forge/core/scenario.dart';
@@ -92,5 +93,32 @@ void main() {
 
   test('schema version is pinned (a bump requires a migration test)', () {
     expect(db.schemaVersion, 1);
+  });
+
+  test('missions persist atomically with the session, update, export and delete', () async {
+    final (rec, book) = completed();
+    final m = missionFor(sessionId: rec.id, criterionId: 'ask', now: t0);
+    await repo.saveCompleted(rec, book, missions: [m]);
+    var back = await repo.missions();
+    expect(back.single.text, m.text);
+    m.complete(now: t0.add(const Duration(days: 1)), outcome: 'Did it.');
+    await repo.saveMissions([m]);
+    back = await repo.missions();
+    expect(back.single.status, MissionStatus.done);
+    expect(((await repo.exportAll())['missions'] as List).length, 1);
+    await repo.deleteAll();
+    expect(await repo.missions(), isEmpty);
+  });
+
+  test('a failed transaction does not leave a half-saved mission behind', () async {
+    final (rec, book) = completed();
+    await expectLater(
+        db.transaction(() async {
+          await repo.saveCompleted(rec, book, missions: [missionFor(sessionId: rec.id, criterionId: 'ask', now: t0)]);
+          throw StateError('boom');
+        }),
+        throwsStateError);
+    expect(await repo.missions(), isEmpty);
+    expect(await repo.sessions(), isEmpty);
   });
 }
